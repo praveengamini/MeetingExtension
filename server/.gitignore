@@ -1,0 +1,32 @@
+# Node.js dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+
+# Build output
+dist
+build
+
+# Logs
+*.log
+logs
+*.gz
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode
+.idea
+*.iml
+
+# Coverage files
+coverage
+
+# Miscellaneous
+*.bak
+*.swp

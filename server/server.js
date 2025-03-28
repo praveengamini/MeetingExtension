@@ -2,6 +2,7 @@ import express from 'express';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import morgan from 'morgan';
+import dotenv from 'dotenv';
 import path from 'path'
 import { fileURLToPath } from 'url';
 import cors from 'cors'
@@ -14,7 +15,8 @@ const __dirname = path.dirname(__filename);
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(cors())
-const port = 5000;
+dotenv.config();
+const port = process.env.PORT || 5000;
 
 app.post('/generate-pdf', async (req, res) => {
     const { content } = req.body;
@@ -50,8 +52,8 @@ app.post('/generate-pdf', async (req, res) => {
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'wefrnds891@gmail.com', 
-    pass: 'xmzjpmknlcstpytu',
+    user: process.env.EMAIL, 
+    pass: process.env.EMAIL_PASSWORD,
   },
 });
   app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
