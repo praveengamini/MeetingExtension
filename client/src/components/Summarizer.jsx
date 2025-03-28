@@ -6,13 +6,17 @@ const Summarizer = ({ text }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate()
   const summarizeText = async () => {
-    const apiUrl = 'https://api-inference.huggingface.co/models/facebook/bart-large-cnn';
-    const apiKey = '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';
-    setLoading(true); 
+    const apiUrl = import.meta.env.VITE_HUGGINGFACE_API_URL;
+    const apiKey = import.meta.env.VITE_HUGGINGFACE_API_KEY;
+    console.log(apiUrl);
+    console.log(apiKey);
+    
+    
+    setLoading(true);
     try {
       const response = await axios.post(
         apiUrl,
-        { inputs: text }, 
+        { inputs: text },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -20,15 +24,15 @@ const Summarizer = ({ text }) => {
           },
         }
       );
-      setSummary(response.data[0].summary_text);  
+      setSummary(response.data[0].summary_text);
     } catch (error) {
       console.error('Error:', error.response ? error.response.data : error.message);
-      setSummary("Failed to generate summary. Please try again."); 
+      setSummary("Failed to generate summary. Please try again.");
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
   };
-
+  
   const downloadSummary = async () => {
     try {
       const res = await axios.post(

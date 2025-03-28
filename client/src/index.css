@@ -1,1 +1,5 @@
 @import "tailwindcss";
+#root{
+    height:500px;
+    width:500px;
+}

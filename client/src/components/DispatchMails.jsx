@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Papa from 'papaparse'; 
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify'; 
-import 'react-toastify/dist/ReactToastify.css'; // Toast styles
+import 'react-toastify/dist/ReactToastify.css'; 
 import { MdDelete } from "react-icons/md";
 const DispatchMails = () => {
   const [mails, setMails] = useState([]);
