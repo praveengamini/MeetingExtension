@@ -21,7 +21,6 @@ const SummarySection = ({
 
     setIsGeneratingSummary(true);
     try {
-      // Call backend to generate summary using Cohere
       const response = await fetch(`${backendUrl}/generate-summary`, {
         method: 'POST',
         headers: {
@@ -46,7 +45,6 @@ const SummarySection = ({
       console.error('Error generating summary:', error);
       showNotification(`Failed to generate summary: ${error.message}. Make sure your backend server is running on ${backendUrl}`, 'error');
       
-      // Fallback to simple summary if Cohere fails
       const sentences = transcript.split('. ').filter(s => s.trim().length > 10);
       const keyPoints = sentences.slice(0, Math.min(5, sentences.length));
       const fallbackSummary = `Meeting Summary (Basic)\n\nKey Points:\n${keyPoints.map((point, i) => `${i + 1}. ${point.trim()}.`).join('\n')}\n\nDuration: ${formatTime(recordingTime)}\nGenerated: ${new Date().toLocaleString()}\n\nFull Transcript:\n${transcript}`;
@@ -76,14 +74,12 @@ const SummarySection = ({
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
-      // Use Chrome downloads API if available
       if (typeof chrome !== 'undefined' && chrome.downloads) {
         chrome.downloads.download({
           url: url,
           filename: `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`
         });
       } else {
-        // Fallback to regular download
         const a = document.createElement('a');
         a.href = url;
         a.download = `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -102,7 +98,6 @@ const SummarySection = ({
 
   return (
     <>
-      {/* Generate Summary Button */}
       {transcript && (
         <div className="mb-6">
           <button
@@ -125,7 +120,6 @@ const SummarySection = ({
         </div>
       )}
 
-      {/* Summary Display */}
       {summary && (
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -140,7 +134,6 @@ const SummarySection = ({
         </div>
       )}
 
-      {/* Action Buttons */}
       {summary && (
         <div className="space-y-3">
           <button

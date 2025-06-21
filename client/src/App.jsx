@@ -4,36 +4,29 @@ import TranscriptSection from './components/TranscriptSection';
 import SummarySection from './components/SummarySection';
 import EmailDispatchSection from './components/EmailDispatchSection';
 import NotificationComponent from './components/NotificationComponent';
-
+import usePopupPrevention from './components/usePopupPrevention';
 const App = () => {
-  // Main app state
   const [currentView, setCurrentView] = useState('main');
   
-  // Speech to text state
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const recognitionRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // Summary state
   const [summary, setSummary] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
-  // Email dispatch state
   const [emails, setEmails] = useState([]);
   const [newEmail, setNewEmail] = useState('');
   const [subject, setSubject] = useState('Meeting Summary');
   const [csvFile, setCsvFile] = useState(null);
   const [isSending, setIsSending] = useState(false);
 
-  // Backend URL - make configurable for different environments
   const [backendUrl, setBackendUrl] = useState('http://localhost:5000');
 
-  // Notification state for user feedback
   const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
 
-  // Show notification helper
   const showNotification = (message, type = 'info') => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
@@ -41,7 +34,6 @@ const App = () => {
     }, 4000);
   };
 
-  // Initialize speech recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -69,7 +61,6 @@ const App = () => {
           clearInterval(intervalRef.current);
         }
         
-        // Show user-friendly error messages
         let errorMessage = 'Speech recognition error occurred';
         switch(event.error) {
           case 'no-speech':
@@ -96,7 +87,6 @@ const App = () => {
       };
     }
 
-    // Load saved data from Chrome storage
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.get(['transcript', 'summary', 'emails', 'subject'], (result) => {
         if (result.transcript) setTranscript(result.transcript);
@@ -116,7 +106,6 @@ const App = () => {
     };
   }, []);
 
-  // Save data to Chrome storage whenever state changes
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.set({
@@ -142,14 +131,12 @@ const App = () => {
           clearInterval(intervalRef.current);
         }
       } else {
-        // Request microphone permission
         await navigator.mediaDevices.getUserMedia({ audio: true });
         
         recognitionRef.current.start();
         setIsListening(true);
         setRecordingTime(0);
         
-        // Start timer
         intervalRef.current = setInterval(() => {
           setRecordingTime(prev => prev + 1);
         }, 1000);
@@ -176,7 +163,6 @@ const App = () => {
     setCsvFile(null);
     setCurrentView('main');
     
-    // Clear Chrome storage
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.clear();
     }
@@ -227,7 +213,7 @@ const App = () => {
           formatTime={formatTime}
         />
 
-        <TranscriptSection transcript={transcript} />
+        <TranscriptSection transcript={transcript} setTranscript={setTranscript}/>
 
         <SummarySection
           transcript={transcript}
@@ -242,7 +228,6 @@ const App = () => {
           setCurrentView={setCurrentView}
         />
 
-        {/* Clear All */}
         {(transcript || summary || emails.length > 0) && (
           <button
             onClick={clearAll}

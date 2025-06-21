@@ -62,7 +62,6 @@ const EmailDispatchSection = ({
 
           const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
           
-          // Find email column (look for 'email', 'mail', 'e-mail', etc.)
           const emailColumn = headers.findIndex(header => 
             header.includes('email') || header.includes('mail') || header === 'e-mail'
           );
@@ -97,7 +96,6 @@ const EmailDispatchSection = ({
 
     setIsSending(true);
     try {
-      // First, generate PDF from summary
       const pdfResponse = await fetch(`${backendUrl}/generate-pdf`, {
         method: 'POST',
         headers: {
@@ -112,13 +110,11 @@ const EmailDispatchSection = ({
 
       const pdfBlob = await pdfResponse.blob();
       
-      // Create FormData for the dispatch-mails endpoint
       const formData = new FormData();
       formData.append('subject', subject);
       formData.append('mails', JSON.stringify(emails));
       formData.append('summaryPdf', pdfBlob, `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`);
 
-      // Send emails with PDF attachment
       const emailResponse = await fetch(`${backendUrl}/dispatch-mails`, {
         method: 'POST',
         body: formData,
@@ -132,7 +128,6 @@ const EmailDispatchSection = ({
       const result = await emailResponse.json();
       showNotification(`${result.message} Sent to ${emails.length} recipients!`, 'success');
       
-      // Reset form
       setEmails([]);
       setSubject('Meeting Summary');
       setCsvFile(null);
@@ -167,7 +162,6 @@ const EmailDispatchSection = ({
           </button>
         </div>
 
-        {/* Backend URL Configuration */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Backend URL
@@ -181,7 +175,6 @@ const EmailDispatchSection = ({
           />
         </div>
 
-        {/* Subject */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Subject
@@ -195,7 +188,6 @@ const EmailDispatchSection = ({
           />
         </div>
 
-        {/* Add Email */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Add Recipients
@@ -218,7 +210,6 @@ const EmailDispatchSection = ({
           </div>
         </div>
 
-        {/* CSV Upload */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Upload CSV
@@ -250,7 +241,6 @@ const EmailDispatchSection = ({
           )}
         </div>
 
-        {/* Email List */}
         {emails.length > 0 && (
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -275,7 +265,6 @@ const EmailDispatchSection = ({
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex gap-3">
           <button
             onClick={() => setEmails([])}

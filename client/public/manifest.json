@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "Meeting Recorder",
   "version": "1.0.0",
-  "description": "A Chrome extension for recording meetings with speech-to-text and email dispatch functionality",
+  "description": "A  extension for recording meetings with speech-to-text and email dispatch functionality",
   "permissions": [
     "activeTab",
     "storage",
-    "downloads"
+    "downloads",
+    "microphone"
   ],
   "host_permissions": [
     "http://localhost:5000/*",
