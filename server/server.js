@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
+import { CohereClient } from 'cohere-ai'; // Fixed import
 
 const app = express();
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
@@ -17,6 +18,11 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
+
+// Initialize Cohere client after loading environment variables
+const cohere = new CohereClient({
+  token: process.env.COHERE_API_KEY, // Make sure to set this in your .env file
+});
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -38,7 +44,11 @@ if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
   console.warn('Warning: EMAIL and EMAIL_PASSWORD environment variables not set. Email functionality will not work.');
 }
 
-// Configure nodemailer transporter - FIXED: createTransport not createTransporter
+if (!process.env.COHERE_API_KEY) {
+  console.warn('Warning: COHERE_API_KEY environment variable not set. AI summary functionality will not work.');
+}
+
+// Configure nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -201,48 +211,99 @@ app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    emailConfigured: !!(process.env.EMAIL && process.env.EMAIL_PASSWORD)
-  });
-});
+// POST /generate-summary endpoint
+app.post('/generate-summary', async (req, res) => {
+  try {
+    const { transcript, duration } = req.body;
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Meeting Recorder API Server',
-    version: '1.0.0',
-    endpoints: {
-      '/health': 'GET - Health check',
-      '/generate-pdf': 'POST - Generate PDF from content',
-      '/dispatch-mails': 'POST - Send emails with PDF attachment'
+    if (!transcript || transcript.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Transcript is required and cannot be empty' 
+      });
     }
-  });
+
+    // Check Cohere API key
+    if (!process.env.COHERE_API_KEY) {
+      return res.status(500).json({ 
+        error: 'Cohere API key not configured. Please set COHERE_API_KEY environment variable.' 
+      });
+    }
+
+    // Prepare the prompt for Cohere
+    const prompt = `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.
+
+Meeting Duration: ${duration || 'Not specified'}
+Date: ${new Date().toLocaleDateString()}
+
+Transcript:
+${transcript}
+
+Please structure your summary with the following sections:
+1. Meeting Overview
+2. Key Discussion Points
+3. Decisions Made
+4. Action Items (if any)
+5. Next Steps (if mentioned)`;
+
+    // Call Cohere API for summarization
+    const response = await cohere.generate({
+      model: 'command', // Using the standard model for better compatibility
+      prompt: prompt,
+      maxTokens: 1000, // Updated parameter name
+      temperature: 0.3,
+      k: 0,
+      stopSequences: [],
+      returnLikelihoods: 'NONE'
+    });
+
+    if (!response.generations || response.generations.length === 0) {
+      throw new Error('No summary generated from Cohere API');
+    }
+
+    const aiSummary = response.generations[0].text.trim();
+    
+    // Format the final summary
+    const formattedSummary = `AI-Generated Meeting Summary
+Generated on: ${new Date().toLocaleString()}
+Meeting Duration: ${duration || 'Not specified'}
+
+${aiSummary}
+
+---
+Full Transcript:
+${transcript}`;
+
+    res.json({ 
+      success: true,
+      summary: formattedSummary,
+      model_used: 'command',
+      generated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error generating summary with Cohere:', error);
+    
+    // Provide a more specific error message
+    let errorMessage = 'Failed to generate summary';
+    
+    if (error.message?.includes('API key') || error.message?.includes('unauthorized')) {
+      errorMessage = 'Invalid Cohere API key. Please check your configuration.';
+    } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
+      errorMessage = 'API quota exceeded. Please try again later.';
+    } else if (error.message?.includes('network') || error.code === 'ECONNREFUSED') {
+      errorMessage = 'Network error. Please check your internet connection.';
+    }
+
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: error.message 
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
 
 // Start server
 app.listen(port, () => {
   console.log(`Meeting Recorder API Server running on port ${port}`);
-  console.log(`Health check: http://localhost:${port}/health`);
-  
-  if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
-    console.log('\n⚠️  Email functionality disabled - set EMAIL and EMAIL_PASSWORD environment variables to enable');
-  }
+
 });
