@@ -1,21 +1,32 @@
 {
   "manifest_version": 3,
-  "name": "My Vite React Extension",
-  "version": "1.0",
-  "description": "A Vite + React Chrome Extension with microphone access",
+  "name": "Meeting Recorder",
+  "version": "1.0.0",
+  "description": "A  extension for recording meetings with speech-to-text and email dispatch functionality",
   "permissions": [
     "activeTab",
     "storage",
-    "tabs"
+    "downloads",
+    "microphone"
   ],
   "host_permissions": [
-    "http://*/*",
+    "http://localhost:5000/*",
     "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "index.html"
-  }
+    "default_popup": "index.html",
+    "default_title": "Meeting Recorder"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["*.js", "*.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

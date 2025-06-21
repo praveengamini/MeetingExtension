@@ -3,103 +3,307 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import path from 'path'
+import path from 'path';
 import { fileURLToPath } from 'url';
-import cors from 'cors'
-import multer from 'multer'
-import nodemailer from 'nodemailer'
+import cors from 'cors';
+import multer from 'multer';
+import nodemailer from 'nodemailer';
+import { CohereClient } from 'cohere-ai'; // Fixed import
+
 const app = express();
-const upload = multer()
+const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use(express.json());
-app.use(morgan('dev'));
-app.use(cors())
+
+// Load environment variables
 dotenv.config();
+
+// Initialize Cohere client after loading environment variables
+const cohere = new CohereClient({
+  token: process.env.COHERE_API_KEY, // Make sure to set this in your .env file
+});
+
+// Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(morgan('dev'));
+
+// CORS configuration for Chrome extension
+app.use(cors({
+  origin: true, // Allow all origins for development
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+}));
+
 const port = process.env.PORT || 5000;
 
-app.post('/generate-pdf', async (req, res) => {
-    const { content } = req.body;
+// Validate environment variables
+if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
+  console.warn('Warning: EMAIL and EMAIL_PASSWORD environment variables not set. Email functionality will not work.');
+}
 
-    if (!content) {
-        return res.status(400).json({ error: 'Content is required' });
-    }
+if (!process.env.COHERE_API_KEY) {
+  console.warn('Warning: COHERE_API_KEY environment variable not set. AI summary functionality will not work.');
+}
 
-    const doc = new PDFDocument();
-    const filename = 'output.pdf';
-    const filePath = path.join(__dirname, filename);
-
-    const writeStream = fs.createWriteStream(filePath);
-    doc.pipe(writeStream);
-    doc.pipe(res);
-
-    doc.fontSize(16).text(content, { align: 'left' });
-    doc.end();
-
-    writeStream.on('finish', () => {
-        console.log(`PDF saved as ${filename}`);
-
-        fs.unlink(filePath, (err) => {
-            if (err) {
-                console.error('Error deleting the file:', err);
-            } else {
-                console.log('File deleted successfully');
-            }
-        });
-    });
-});
-  
+// Configure nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL, 
+    user: process.env.EMAIL,
     pass: process.env.EMAIL_PASSWORD,
   },
 });
-  app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
-    try {
-      const subject = req.body.subject;
-      const mails = JSON.parse(req.body.mails);
-      const summaryPdf = req.file; 
-  
-      if (!subject || !mails || !summaryPdf) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-  
-      console.log('Subject:', subject);
-      console.log('Mails:', mails);
-      console.log('PDF File:', summaryPdf);
-  
-      for (const email of mails) {
-        const mailOptions = {
-          from: 'wefrnds891@gmail.com', 
-          to: email, 
-          subject: subject, 
-          text: 'Please find the attached summary PDF.', 
-          attachments: [
-            {
-              filename: summaryPdf.originalname, 
-              content: summaryPdf.buffer,
-            },
-          ],
-        };
-  
-        await transporter.sendMail(mailOptions);
-        console.log(`Email sent to ${email}`);
-      }
-  
-      res.status(200).json({ message: 'Emails dispatched successfully!' });
-    } catch (error) {
-      console.error('Error processing submission:', error);
-      res.status(500).json({ error: 'An error occurred while processing your request' });
+
+// Verify email configuration on startup
+if (process.env.EMAIL && process.env.EMAIL_PASSWORD) {
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('Email configuration error:', error);
+    } else {
+      console.log('Email server is ready to send messages');
     }
   });
-  
+}
 
-app.get('/', (req, res) => {
-    res.send("<h1>Hello</h1>");
+// Generate PDF endpoint
+app.post('/generate-pdf', async (req, res) => {
+  console.log('Received PDF generation request');
+  console.log('Request body:', req.body);
+  
+  try {
+    const { content } = req.body;
+
+    if (!content) {
+      console.log('No content provided');
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    console.log('Generating PDF with content length:', content.length);
+
+    // Set response headers for PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="meeting-summary.pdf"');
+
+    // Create PDF document
+    const doc = new PDFDocument({
+      margin: 50,
+      size: 'A4'
+    });
+
+    // Pipe the PDF directly to the response
+    doc.pipe(res);
+
+    // Add content to PDF
+    doc.fontSize(20)
+       .text('Meeting Summary', { align: 'center' })
+       .moveDown();
+
+    doc.fontSize(12)
+       .text(content, {
+         align: 'left',
+         lineGap: 5
+       });
+
+    // Finalize the PDF
+    doc.end();
+    console.log('PDF generated successfully');
+
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
+    }
+  }
 });
 
+// Email dispatch endpoint
+app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
+  try {
+    const { subject, mails } = req.body;
+    const summaryPdf = req.file;
+
+    // Validate required fields
+    if (!subject) {
+      return res.status(400).json({ error: 'Subject is required' });
+    }
+
+    if (!mails) {
+      return res.status(400).json({ error: 'Email list is required' });
+    }
+
+    if (!summaryPdf) {
+      return res.status(400).json({ error: 'PDF attachment is required' });
+    }
+
+    // Check email configuration
+    if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
+      return res.status(500).json({ 
+        error: 'Email configuration not set. Please configure EMAIL and EMAIL_PASSWORD environment variables.' 
+      });
+    }
+
+    const emailList = JSON.parse(mails);
+    
+    if (!Array.isArray(emailList) || emailList.length === 0) {
+      return res.status(400).json({ error: 'Valid email list is required' });
+    }
+
+    console.log(`Sending emails to ${emailList.length} recipients`);
+
+    const emailPromises = emailList.map(async (email) => {
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: email,
+        subject: subject,
+        html: `
+          <h2>Meeting Summary</h2>
+          <p>Please find the attached meeting summary PDF.</p>
+          <p>This email was sent automatically by the Meeting Recorder extension.</p>
+          <hr>
+          <small>Generated on: ${new Date().toLocaleString()}</small>
+        `,
+        attachments: [
+          {
+            filename: summaryPdf.originalname || 'meeting-summary.pdf',
+            content: summaryPdf.buffer,
+            contentType: 'application/pdf'
+          }
+        ]
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Email sent successfully to ${email}`);
+        return { email, status: 'sent' };
+      } catch (error) {
+        console.error(`Failed to send email to ${email}:`, error);
+        return { email, status: 'failed', error: error.message };
+      }
+    });
+
+    const results = await Promise.all(emailPromises);
+    const successful = results.filter(r => r.status === 'sent').length;
+    const failed = results.filter(r => r.status === 'failed').length;
+
+    if (successful === 0) {
+      return res.status(500).json({ 
+        error: 'Failed to send any emails',
+        details: results 
+      });
+    }
+
+    res.status(200).json({
+      message: `Successfully sent ${successful} emails${failed > 0 ? ` (${failed} failed)` : ''}`,
+      successful,
+      failed,
+      details: results
+    });
+
+  } catch (error) {
+    console.error('Error in dispatch-mails:', error);
+    res.status(500).json({ 
+      error: 'An error occurred while processing your request',
+      details: error.message 
+    });
+  }
+});
+
+// POST /generate-summary endpoint
+app.post('/generate-summary', async (req, res) => {
+  try {
+    const { transcript, duration } = req.body;
+
+    if (!transcript || transcript.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Transcript is required and cannot be empty' 
+      });
+    }
+
+    // Check Cohere API key
+    if (!process.env.COHERE_API_KEY) {
+      return res.status(500).json({ 
+        error: 'Cohere API key not configured. Please set COHERE_API_KEY environment variable.' 
+      });
+    }
+
+    // Prepare the prompt for Cohere
+    const prompt = `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.
+
+Meeting Duration: ${duration || 'Not specified'}
+Date: ${new Date().toLocaleDateString()}
+
+Transcript:
+${transcript}
+
+Please structure your summary with the following sections:
+1. Meeting Overview
+2. Key Discussion Points
+3. Decisions Made
+4. Action Items (if any)
+5. Next Steps (if mentioned)`;
+
+    // Call Cohere API for summarization
+    const response = await cohere.generate({
+      model: 'command', // Using the standard model for better compatibility
+      prompt: prompt,
+      maxTokens: 1000, // Updated parameter name
+      temperature: 0.3,
+      k: 0,
+      stopSequences: [],
+      returnLikelihoods: 'NONE'
+    });
+
+    if (!response.generations || response.generations.length === 0) {
+      throw new Error('No summary generated from Cohere API');
+    }
+
+    const aiSummary = response.generations[0].text.trim();
+    
+    // Format the final summary
+    const formattedSummary = `AI-Generated Meeting Summary
+Generated on: ${new Date().toLocaleString()}
+Meeting Duration: ${duration || 'Not specified'}
+
+${aiSummary}
+
+---
+Full Transcript:
+${transcript}`;
+
+    res.json({ 
+      success: true,
+      summary: formattedSummary,
+      model_used: 'command',
+      generated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error generating summary with Cohere:', error);
+    
+    // Provide a more specific error message
+    let errorMessage = 'Failed to generate summary';
+    
+    if (error.message?.includes('API key') || error.message?.includes('unauthorized')) {
+      errorMessage = 'Invalid Cohere API key. Please check your configuration.';
+    } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
+      errorMessage = 'API quota exceeded. Please try again later.';
+    } else if (error.message?.includes('network') || error.code === 'ECONNREFUSED') {
+      errorMessage = 'Network error. Please check your internet connection.';
+    }
+
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+
+// Start server
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+  console.log(`Meeting Recorder API Server running on port ${port}`);
+
 });
