@@ -2,8 +2,10 @@
   "manifest_version": 3,
   "name": "Meeting Recorder",
   "version": "1.0.0",
-  "description": "A  extension for recording meetings with speech-to-text and email dispatch functionality",
+  "description": "Extension for recording meetings with speech-to-text and email dispatch",
   "permissions": [
+    "tabs",
+    "windows",
     "activeTab",
     "storage",
     "downloads",
@@ -17,7 +19,6 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "index.html",
     "default_title": "Meeting Recorder"
   },
   "content_security_policy": {

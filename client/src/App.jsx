@@ -4,7 +4,6 @@ import TranscriptSection from './components/TranscriptSection';
 import SummarySection from './components/SummarySection';
 import EmailDispatchSection from './components/EmailDispatchSection';
 import NotificationComponent from './components/NotificationComponent';
-import usePopupPrevention from './components/usePopupPrevention';
 const App = () => {
   const [currentView, setCurrentView] = useState('main');
   
