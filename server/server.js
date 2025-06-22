@@ -8,38 +8,33 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
-import { CohereClient } from 'cohere-ai'; // Fixed import
+import { CohereClient } from 'cohere-ai'; 
 
 const app = express();
-const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
 dotenv.config();
 
-// Initialize Cohere client after loading environment variables
 const cohere = new CohereClient({
-  token: process.env.COHERE_API_KEY, // Make sure to set this in your .env file
+  token: process.env.COHERE_API_KEY, 
 });
 
-// Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
-// CORS configuration for Chrome extension
 app.use(cors({
-  origin: true, // Allow all origins for development
+  origin: true, 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  optionsSuccessStatus: 200
 }));
 
 const port = process.env.PORT || 5000;
 
-// Validate environment variables
 if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
   console.warn('Warning: EMAIL and EMAIL_PASSWORD environment variables not set. Email functionality will not work.');
 }
@@ -48,7 +43,6 @@ if (!process.env.COHERE_API_KEY) {
   console.warn('Warning: COHERE_API_KEY environment variable not set. AI summary functionality will not work.');
 }
 
-// Configure nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -57,7 +51,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Verify email configuration on startup
 if (process.env.EMAIL && process.env.EMAIL_PASSWORD) {
   transporter.verify((error, success) => {
     if (error) {
@@ -68,7 +61,6 @@ if (process.env.EMAIL && process.env.EMAIL_PASSWORD) {
   });
 }
 
-// Generate PDF endpoint
 app.post('/generate-pdf', async (req, res) => {
   console.log('Received PDF generation request');
   console.log('Request body:', req.body);
@@ -83,20 +75,16 @@ app.post('/generate-pdf', async (req, res) => {
 
     console.log('Generating PDF with content length:', content.length);
 
-    // Set response headers for PDF
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="meeting-summary.pdf"');
 
-    // Create PDF document
     const doc = new PDFDocument({
       margin: 50,
       size: 'A4'
     });
 
-    // Pipe the PDF directly to the response
     doc.pipe(res);
 
-    // Add content to PDF
     doc.fontSize(20)
        .text('Meeting Summary', { align: 'center' })
        .moveDown();
@@ -107,7 +95,6 @@ app.post('/generate-pdf', async (req, res) => {
          lineGap: 5
        });
 
-    // Finalize the PDF
     doc.end();
     console.log('PDF generated successfully');
 
@@ -119,13 +106,11 @@ app.post('/generate-pdf', async (req, res) => {
   }
 });
 
-// Email dispatch endpoint
 app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
   try {
     const { subject, mails } = req.body;
     const summaryPdf = req.file;
 
-    // Validate required fields
     if (!subject) {
       return res.status(400).json({ error: 'Subject is required' });
     }
@@ -138,7 +123,6 @@ app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
       return res.status(400).json({ error: 'PDF attachment is required' });
     }
 
-    // Check email configuration
     if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
       return res.status(500).json({ 
         error: 'Email configuration not set. Please configure EMAIL and EMAIL_PASSWORD environment variables.' 
@@ -211,7 +195,6 @@ app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
   }
 });
 
-// POST /generate-summary endpoint
 app.post('/generate-summary', async (req, res) => {
   try {
     const { transcript, duration } = req.body;
@@ -222,14 +205,12 @@ app.post('/generate-summary', async (req, res) => {
       });
     }
 
-    // Check Cohere API key
     if (!process.env.COHERE_API_KEY) {
       return res.status(500).json({ 
         error: 'Cohere API key not configured. Please set COHERE_API_KEY environment variable.' 
       });
     }
 
-    // Prepare the prompt for Cohere
     const prompt = `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.
 
 Meeting Duration: ${duration || 'Not specified'}
@@ -245,11 +226,10 @@ Please structure your summary with the following sections:
 4. Action Items (if any)
 5. Next Steps (if mentioned)`;
 
-    // Call Cohere API for summarization
     const response = await cohere.generate({
-      model: 'command', // Using the standard model for better compatibility
+      model: 'command', 
       prompt: prompt,
-      maxTokens: 1000, // Updated parameter name
+      maxTokens: 1000, 
       temperature: 0.3,
       k: 0,
       stopSequences: [],
@@ -262,7 +242,6 @@ Please structure your summary with the following sections:
 
     const aiSummary = response.generations[0].text.trim();
     
-    // Format the final summary
     const formattedSummary = `AI-Generated Meeting Summary
 Generated on: ${new Date().toLocaleString()}
 Meeting Duration: ${duration || 'Not specified'}
@@ -283,7 +262,6 @@ ${transcript}`;
   } catch (error) {
     console.error('Error generating summary with Cohere:', error);
     
-    // Provide a more specific error message
     let errorMessage = 'Failed to generate summary';
     
     if (error.message?.includes('API key') || error.message?.includes('unauthorized')) {
@@ -302,7 +280,6 @@ ${transcript}`;
 });
 
 
-// Start server
 app.listen(port, () => {
   console.log(`Meeting Recorder API Server running on port ${port}`);
 
