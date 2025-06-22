@@ -1,10 +1,64 @@
-let extensionWindowId = null;
+// === Store and retrieve the popup window ID persistently ===
+function getStoredWindowId(callback) {
+  chrome.storage.local.get(['extensionWindowId'], (result) => {
+    callback(result.extensionWindowId || null);
+  });
+}
 
-// Called when extension is installed
+function setStoredWindowId(id) {
+  chrome.storage.local.set({ extensionWindowId: id });
+}
+
+function clearStoredWindowId() {
+  chrome.storage.local.remove('extensionWindowId');
+}
+
+// === Open the React extension in a popup window ===
+function openExtensionWindow() {
+  chrome.windows.create({
+    url: chrome.runtime.getURL("index.html"),
+    type: "popup",
+    width: 400,
+    height: 600
+  }, (newWindow) => {
+    if (newWindow && newWindow.id !== undefined) {
+      setStoredWindowId(newWindow.id);
+    }
+  });
+}
+
+// === Handle extension icon click ===
+chrome.action.onClicked.addListener(() => {
+  getStoredWindowId((windowId) => {
+    if (windowId !== null) {
+      chrome.windows.get(windowId, (win) => {
+        if (chrome.runtime.lastError || !win) {
+          // Window closed or invalid — open new
+          openExtensionWindow();
+        } else {
+          // Window exists — bring to focus
+          chrome.windows.update(windowId, { focused: true });
+        }
+      });
+    } else {
+      openExtensionWindow();
+    }
+  });
+});
+
+// === Handle manual window close to clean up ID ===
+chrome.windows.onRemoved.addListener((closedWindowId) => {
+  getStoredWindowId((storedId) => {
+    if (storedId === closedWindowId) {
+      clearStoredWindowId();
+    }
+  });
+});
+
+// === Initialize storage defaults on install ===
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Meeting Recorder Extension installed");
 
-  // Set default storage values
   chrome.storage.local.set({
     transcript: '',
     summary: '',
@@ -13,43 +67,7 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Handle click on extension icon
-chrome.action.onClicked.addListener(() => {
-  if (extensionWindowId !== null) {
-    chrome.windows.get(extensionWindowId, (win) => {
-      if (chrome.runtime.lastError || !win) {
-        // If the window doesn't exist anymore, open a new one
-        openExtensionWindow();
-      } else {
-        // Window exists, just focus it
-        chrome.windows.update(extensionWindowId, { focused: true });
-      }
-    });
-  } else {
-    openExtensionWindow();
-  }
-});
-
-// Function to open popup window with extension UI
-function openExtensionWindow() {
-  chrome.windows.create({
-    url: chrome.runtime.getURL("index.html"),
-    type: "popup",
-    width: 400,
-    height: 600
-  }, (newWindow) => {
-    extensionWindowId = newWindow.id;
-  });
-}
-
-// Reset the window ID if it gets closed
-chrome.windows.onRemoved.addListener((closedWindowId) => {
-  if (closedWindowId === extensionWindowId) {
-    extensionWindowId = null;
-  }
-});
-
-// Handle messages from UI (React popup)
+// === Handle messages from the UI (React app) ===
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Message received:", request);
 
@@ -80,7 +98,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (chrome.runtime.lastError) {
           sendResponse({ error: chrome.runtime.lastError.message });
         } else {
-          sendResponse({ success: true, downloadId: downloadId });
+          sendResponse({ success: true, downloadId });
         }
       });
       return true;
