@@ -3,8 +3,6 @@ import { Mail, Plus, Upload, X, Trash2 } from 'lucide-react';
 import NotificationComponent from './NotificationComponent';
 
 const EmailDispatchSection = ({
-  backendUrl,
-  setBackendUrl,
   subject,
   setSubject,
   emails,
@@ -21,10 +19,9 @@ const EmailDispatchSection = ({
   notification,
   setNotification
 }) => {
-  const validateEmail = (email) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email);
-  };
+  const backendUrl = "http://localhost:5000";
+
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleAddEmail = () => {
     if (newEmail.trim() && validateEmail(newEmail)) {
@@ -54,18 +51,17 @@ const EmailDispatchSection = ({
         try {
           const text = e.target.result;
           const lines = text.split('\n').filter(line => line.trim());
-          
+
           if (lines.length === 0) {
             showNotification('CSV file is empty', 'error');
             return;
           }
 
           const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-          
-          const emailColumn = headers.findIndex(header => 
+          const emailColumn = headers.findIndex(header =>
             header.includes('email') || header.includes('mail') || header === 'e-mail'
           );
-          
+
           if (emailColumn !== -1) {
             const newEmails = lines.slice(1)
               .map(line => {
@@ -73,7 +69,7 @@ const EmailDispatchSection = ({
                 return columns[emailColumn] ? columns[emailColumn].trim() : null;
               })
               .filter(email => email && validateEmail(email));
-            
+
             setEmails(prev => [...new Set([...prev, ...newEmails])]);
             showNotification(`Added ${newEmails.length} emails from CSV`, 'success');
           } else {
@@ -98,9 +94,7 @@ const EmailDispatchSection = ({
     try {
       const pdfResponse = await fetch(`${backendUrl}/generate-pdf`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: summary }),
       });
 
@@ -109,7 +103,7 @@ const EmailDispatchSection = ({
       }
 
       const pdfBlob = await pdfResponse.blob();
-      
+
       const formData = new FormData();
       formData.append('subject', subject);
       formData.append('mails', JSON.stringify(emails));
@@ -127,12 +121,12 @@ const EmailDispatchSection = ({
 
       const result = await emailResponse.json();
       showNotification(`${result.message} Sent to ${emails.length} recipients!`, 'success');
-      
+
       setEmails([]);
       setSubject('Meeting Summary');
       setCsvFile(null);
       setCurrentView('main');
-      
+
     } catch (error) {
       console.error('Error sending emails:', error);
       showNotification(`Failed to send emails: ${error.message}. Make sure your backend server is running on ${backendUrl}`, 'error');
@@ -143,11 +137,8 @@ const EmailDispatchSection = ({
 
   return (
     <div className="w-96 h-[600px] bg-gradient-to-br from-blue-50 to-purple-50 p-4 overflow-y-auto relative">
-      <NotificationComponent 
-        notification={notification} 
-        setNotification={setNotification} 
-      />
-      
+      <NotificationComponent notification={notification} setNotification={setNotification} />
+
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800 flex items-center">
@@ -160,19 +151,6 @@ const EmailDispatchSection = ({
           >
             <X size={20} />
           </button>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Backend URL
-          </label>
-          <input
-            type="text"
-            value={backendUrl}
-            onChange={(e) => setBackendUrl(e.target.value)}
-            className="w-full p-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="http://localhost:5000"
-          />
         </div>
 
         <div className="mb-4">
