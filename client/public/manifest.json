@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Extension for recording meetings with speech-to-text and email dispatch",
   "permissions": [
+    "notifications",
     "tabs",
     "windows",
     "activeTab",
@@ -12,14 +13,27 @@
     "microphone"
   ],
   "host_permissions": [
-    "http://localhost:5000/*",
-    "https://*/*"
+    "https://meet.google.com/*",
+    "https://*.zoom.us/*",
+    "https://teams.microsoft.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Meeting Recorder"
+    "default_title": "Meeting Recorder",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
@@ -27,7 +41,11 @@
   "web_accessible_resources": [
     {
       "resources": ["*.js", "*.css"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://teams.microsoft.com/*"
+      ]
     }
   ]
 }
