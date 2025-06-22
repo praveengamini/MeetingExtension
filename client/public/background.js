@@ -29,19 +29,35 @@ function openExtensionWindow() {
 
 // === Handle extension icon click ===
 chrome.action.onClicked.addListener(() => {
-  getStoredWindowId((windowId) => {
-    if (windowId !== null) {
-      chrome.windows.get(windowId, (win) => {
-        if (chrome.runtime.lastError || !win) {
-          // Window closed or invalid — open new
-          openExtensionWindow();
-        } else {
-          // Window exists — bring to focus
-          chrome.windows.update(windowId, { focused: true });
-        }
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const url = tabs[0].url || '';
+    const isMeetingSite =
+      url.includes("meet.google.com") ||
+      url.includes("zoom.us") ||
+      url.includes("teams.microsoft.com");
+
+    if (!isMeetingSite) {
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "icon.png", // Make sure icon.png exists in your extension folder
+        title: "Unsupported Site",
+        message: "This extension only works on supported meeting sites (Google Meet, Zoom, Teams)."
       });
     } else {
-      openExtensionWindow();
+      // Continue opening or focusing the extension window
+      getStoredWindowId((windowId) => {
+        if (windowId !== null) {
+          chrome.windows.get(windowId, (win) => {
+            if (chrome.runtime.lastError || !win) {
+              openExtensionWindow();
+            } else {
+              chrome.windows.update(windowId, { focused: true });
+            }
+          });
+        } else {
+          openExtensionWindow();
+        }
+      });
     }
   });
 });
