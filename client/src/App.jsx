@@ -22,7 +22,7 @@ const App = () => {
   const [csvFile, setCsvFile] = useState(null);
   const [isSending, setIsSending] = useState(false);
 
-  const [backendUrl, setBackendUrl] = useState('http://localhost:5000');
+  const [backendUrl, setBackendUrl] = useState('https://meetingextension.onrender.com');
 
   const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
 
