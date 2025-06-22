@@ -1,4 +1,3 @@
-// === Store and retrieve the popup window ID persistently ===
 function getStoredWindowId(callback) {
   chrome.storage.local.get(['extensionWindowId'], (result) => {
     callback(result.extensionWindowId || null);
@@ -13,7 +12,6 @@ function clearStoredWindowId() {
   chrome.storage.local.remove('extensionWindowId');
 }
 
-// === Open the React extension in a popup window ===
 function openExtensionWindow() {
   chrome.windows.create({
     url: chrome.runtime.getURL("index.html"),
@@ -27,7 +25,6 @@ function openExtensionWindow() {
   });
 }
 
-// === Handle extension icon click ===
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const url = tabs[0].url || '';
@@ -39,12 +36,11 @@ chrome.action.onClicked.addListener(() => {
     if (!isMeetingSite) {
       chrome.notifications.create({
         type: "basic",
-        iconUrl: "icon.png", // Make sure icon.png exists in your extension folder
+        iconUrl: "icon.png",
         title: "Unsupported Site",
         message: "This extension only works on supported meeting sites (Google Meet, Zoom, Teams)."
       });
     } else {
-      // Continue opening or focusing the extension window
       getStoredWindowId((windowId) => {
         if (windowId !== null) {
           chrome.windows.get(windowId, (win) => {
@@ -62,7 +58,6 @@ chrome.action.onClicked.addListener(() => {
   });
 });
 
-// === Handle manual window close to clean up ID ===
 chrome.windows.onRemoved.addListener((closedWindowId) => {
   getStoredWindowId((storedId) => {
     if (storedId === closedWindowId) {
@@ -71,10 +66,8 @@ chrome.windows.onRemoved.addListener((closedWindowId) => {
   });
 });
 
-// === Initialize storage defaults on install ===
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Meeting Recorder Extension installed");
-
   chrome.storage.local.set({
     transcript: '',
     summary: '',
@@ -83,10 +76,7 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// === Handle messages from the UI (React app) ===
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Message received:", request);
-
   switch (request.action) {
     case 'saveData':
       chrome.storage.local.set(request.data, () => {
