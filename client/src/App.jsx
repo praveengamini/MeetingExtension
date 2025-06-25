@@ -13,7 +13,6 @@ const App = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingMode, setRecordingMode] = useState('microphone'); // 'microphone', 'system', 'both'
   
-  // Audio recording refs
   const recognitionRef = useRef(null);
   const intervalRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -33,11 +32,10 @@ const App = () => {
   const [csvFile, setCsvFile] = useState(null);
   const [isSending, setIsSending] = useState(false);
 
-  const [backendUrl, setBackendUrl] = useState('https://meetingextension.onrender.com');
+  const [backendUrl, setBackendUrl] = useState('http://localhost:5000');
 
   const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
 
-  // Audio transcription states - only Deepgram
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
 
@@ -48,7 +46,6 @@ const App = () => {
     }, 4000);
   };
 
-  // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -125,7 +122,6 @@ const App = () => {
     };
   }, []);
 
-  // Save data to storage
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.set({
@@ -196,7 +192,7 @@ const App = () => {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000 // Optimal for speech recognition
+          sampleRate: 16000 
         } 
       });
     } catch (error) {
@@ -280,7 +276,6 @@ const App = () => {
   const setupAudioRecording = (stream) => {
     audioChunksRef.current = [];
     
-    // Use the best available audio format for transcription
     const mimeTypes = [
       'audio/webm;codecs=opus',
       'audio/webm',
@@ -311,7 +306,6 @@ const App = () => {
     mediaRecorderRef.current.start(1000);
   };
 
-  // Deepgram transcription function
   const transcribeWithDeepgram = async (audioBlob) => {
     if (!deepgramApiKey) {
       throw new Error('Deepgram API key required. Please set it in the configuration.');
@@ -598,7 +592,6 @@ ${recordingMode === 'both' ? '🎤 Note: Microphone audio transcribed above' : '
           </p>
         </div>
 
-        {/* Deepgram API Configuration */}
         {(recordingMode === 'system' || recordingMode === 'both') && (
           <div className="mb-4">
             <label className="block text-white text-sm font-medium mb-2">
