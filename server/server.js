@@ -34,7 +34,7 @@ app.use(cors({
 }));
 
 const port = process.env.PORT || 5000;
-
+//added validation
 if (!process.env.EMAIL || !process.env.EMAIL_PASSWORD) {
   console.warn('Warning: EMAIL and EMAIL_PASSWORD environment variables not set. Email functionality will not work.');
 }
