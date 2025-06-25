@@ -1,4 +1,4 @@
-# 🚀 Voice Chrome Extension
+# 🚀 Meeting Chrome Extension
 
 Voice-enabled Chrome extension with AI integration and email functionality.
 
@@ -10,7 +10,7 @@ cd client
 npm install
 npm run dev
 ```
-In extension paste deepgram api key (https://deepgram.com/)
+In extension paste deepgram api key (https://console.deepgram.com/project/)
 
 ### 2. ⚙️ SERVER SETUP
 ```bash
