@@ -19,7 +19,7 @@ const EmailDispatchSection = ({
   notification,
   setNotification
 }) => {
-  const backendUrl = "https://meetingextension.onrender.com";
+  const backendUrl = "http://localhost:5000";
 
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
