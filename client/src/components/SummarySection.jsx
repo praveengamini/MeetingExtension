@@ -1,5 +1,5 @@
-import React from 'react';
-import { FileText, Download, Users, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, Download, Users, CheckCircle, Settings } from 'lucide-react';
 
 const SummarySection = ({
   transcript,
@@ -13,6 +13,32 @@ const SummarySection = ({
   showNotification,
   setCurrentView
 }) => {
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [selectedFormat, setSelectedFormat] = useState('default');
+
+  const summaryFormats = {
+    default: [
+      "1. Meeting Overview",
+      "2. Key Discussion Points",
+      "3. Decisions Made",
+      "4. Action Items (if any)",
+      "5. Next Steps (if mentioned)"
+    ],
+    technical: [
+      "1. Technical Challenges Discussed",
+      "2. Solutions Proposed",
+      "3. Implementation Plan",
+      "4. Follow-up Tasks"
+    ],
+    management: [
+      "1. Meeting Objective",
+      "2. Key Business Decisions",
+      "3. Resource Allocations",
+      "4. Team Responsibilities",
+      "5. Deadlines"
+    ]
+  };
+
   const generateSummary = async () => {
     if (!transcript.trim()) {
       showNotification('No transcript available to summarize', 'error');
@@ -26,9 +52,11 @@ const SummarySection = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           transcript: transcript.trim(),
-          duration: formatTime(recordingTime)
+          duration: formatTime(recordingTime),
+          summaryStructure: summaryFormats[selectedFormat],
+          customPrompt: customPrompt.trim() || undefined
         }),
       });
 
@@ -40,11 +68,11 @@ const SummarySection = ({
       const result = await response.json();
       setSummary(result.summary);
       showNotification('Summary generated successfully!', 'success');
-      
     } catch (error) {
       console.error('Error generating summary:', error);
-      showNotification(`Failed to generate summary: ${error.message}. Make sure your backend server is running on ${backendUrl}`, 'error');
-      
+      showNotification(`Failed to generate summary: ${error.message}`, 'error');
+
+      // fallback summary
       const sentences = transcript.split('. ').filter(s => s.trim().length > 10);
       const keyPoints = sentences.slice(0, Math.min(5, sentences.length));
       const fallbackSummary = `Meeting Summary (Basic)\n\nKey Points:\n${keyPoints.map((point, i) => `${i + 1}. ${point.trim()}.`).join('\n')}\n\nDuration: ${formatTime(recordingTime)}\nGenerated: ${new Date().toLocaleString()}\n\nFull Transcript:\n${transcript}`;
@@ -67,39 +95,65 @@ const SummarySection = ({
         body: JSON.stringify({ content: summary }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      
-      if (typeof chrome !== 'undefined' && chrome.downloads) {
-        chrome.downloads.download({
-          url: url,
-          filename: `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`
-        });
-      } else {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meeting-summary-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
       showNotification('Summary downloaded successfully!', 'success');
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      showNotification(`Failed to download PDF: ${error.message}. Make sure your backend server is running on ${backendUrl}`, 'error');
+      showNotification(`Failed to download PDF: ${error.message}`, 'error');
     }
   };
 
   return (
     <>
       {transcript && (
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
+          {/* Summary Format Selector */}
+         <div className="bg-white/10 p-3 rounded-lg">
+        <label className="text-white text-sm font-medium  mb-2 flex items-center">
+          <Settings size={14} className="mr-1" /> Summary Format
+        </label>
+        <select
+          value={selectedFormat}
+          onChange={(e) => setSelectedFormat(e.target.value)}
+          className="w-full p-2 rounded-md 
+                    bg-gray-800 text-white border border-gray-600 
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 
+                    hover:bg-gray-700 transition-colors"
+        >
+          <option value="default">Default (General)</option>
+          <option value="technical">Technical Meeting</option>
+          <option value="management">Management Review</option>
+        </select>
+      </div>
+
+
+          {/* Custom Prompt */}
+          <div className="bg-white/10 p-3 rounded-lg">
+            <label className="text-white text-sm font-medium block mb-2">
+              Custom Instructions (Optional)
+            </label>
+            <textarea
+              rows="3"
+              placeholder="E.g., Focus on product design discussion and final outcomes..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              className="w-full p-2 rounded-md bg-white/20 text-white resize-none focus:outline-none"
+            />
+          </div>
+
+          {/* Generate Button */}
           <button
             onClick={generateSummary}
             disabled={isGeneratingSummary || !transcript.trim()}
