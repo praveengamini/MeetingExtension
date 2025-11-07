@@ -195,23 +195,32 @@ app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
   }
 });
 
+import { CohereClientV2 } from "cohere-ai";
+
+const co = new CohereClientV2({
+  token: process.env.COHERE_API_KEY
+});
+
 app.post('/generate-summary', async (req, res) => {
   try {
-    const { transcript, duration } = req.body;
+    const { transcript, duration, summaryStructure, customPrompt } = req.body;
 
     if (!transcript || transcript.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'Transcript is required and cannot be empty' 
-      });
+      return res.status(400).json({ error: 'Transcript is required and cannot be empty' });
     }
 
-    if (!process.env.COHERE_API_KEY) {
-      return res.status(500).json({ 
-        error: 'Cohere API key not configured. Please set COHERE_API_KEY environment variable.' 
-      });
-    }
+    const structure = summaryStructure?.length > 0 
+      ? summaryStructure.join('\n')
+      : `1. Meeting Overview
+2. Key Discussion Points
+3. Decisions Made
+4. Action Items (if any)
+5. Next Steps (if mentioned)`;
 
-    const prompt = `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.
+    const basePrompt = customPrompt || 
+      `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.`;
+
+    const prompt = `${basePrompt}
 
 Meeting Duration: ${duration || 'Not specified'}
 Date: ${new Date().toLocaleDateString()}
@@ -220,28 +229,16 @@ Transcript:
 ${transcript}
 
 Please structure your summary with the following sections:
-1. Meeting Overview
-2. Key Discussion Points
-3. Decisions Made
-4. Action Items (if any)
-5. Next Steps (if mentioned)`;
+${structure}`;
 
-    const response = await cohere.generate({
-      model: 'command', 
-      prompt: prompt,
-      maxTokens: 1000, 
-      temperature: 0.3,
-      k: 0,
-      stopSequences: [],
-      returnLikelihoods: 'NONE'
+    // ✅ New API call
+    const response = await co.chat({
+      model: "command-a-03-2025",
+      messages: [{ role: "user", content: prompt }],
     });
 
-    if (!response.generations || response.generations.length === 0) {
-      throw new Error('No summary generated from Cohere API');
-    }
+    const aiSummary = response.message?.content[0]?.text?.trim() || 'No summary generated.';
 
-    const aiSummary = response.generations[0].text.trim();
-    
     const formattedSummary = `AI-Generated Meeting Summary
 Generated on: ${new Date().toLocaleString()}
 Meeting Duration: ${duration || 'Not specified'}
@@ -252,32 +249,22 @@ ${aiSummary}
 Full Transcript:
 ${transcript}`;
 
-    res.json({ 
+    res.json({
       success: true,
       summary: formattedSummary,
-      model_used: 'command',
+      model_used: response.model,
       generated_at: new Date().toISOString()
     });
 
   } catch (error) {
     console.error('Error generating summary with Cohere:', error);
-    
-    let errorMessage = 'Failed to generate summary';
-    
-    if (error.message?.includes('API key') || error.message?.includes('unauthorized')) {
-      errorMessage = 'Invalid Cohere API key. Please check your configuration.';
-    } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
-      errorMessage = 'API quota exceeded. Please try again later.';
-    } else if (error.message?.includes('network') || error.code === 'ECONNREFUSED') {
-      errorMessage = 'Network error. Please check your internet connection.';
-    }
-
-    res.status(500).json({ 
-      error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    res.status(500).json({
+      error: 'Failed to generate summary',
+      details: error.message
     });
   }
 });
+
 
 
 app.listen(port, () => {
