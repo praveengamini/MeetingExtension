@@ -79,21 +79,157 @@ app.post('/generate-pdf', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="meeting-summary.pdf"');
 
     const doc = new PDFDocument({
-      margin: 50,
-      size: 'A4'
+      margin: 60,
+      size: 'A4',
+      bufferPages: true
     });
 
     doc.pipe(res);
 
-    doc.fontSize(20)
-       .text('Meeting Summary', { align: 'center' })
-       .moveDown();
+    // Define colors
+    const primaryColor = '#2C3E50';
+    const accentColor = '#3498DB';
+    const lightGray = '#95A5A6';
+    const darkGray = '#34495E';
 
-    doc.fontSize(12)
-       .text(content, {
-         align: 'left',
-         lineGap: 5
-       });
+    // Header with background
+    doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
+    
+    // Title
+    doc.fillColor('#FFFFFF')
+       .fontSize(28)
+       .font('Helvetica-Bold')
+       .text('Meeting Summary', 60, 35, { align: 'center' });
+    
+    // Date and time
+    doc.fontSize(10)
+       .font('Helvetica')
+       .fillColor('#ECF0F1')
+       .text(`Generated on ${new Date().toLocaleString('en-US', {
+         weekday: 'long',
+         year: 'numeric',
+         month: 'long',
+         day: 'numeric',
+         hour: '2-digit',
+         minute: '2-digit'
+       })}`, 60, 65, { align: 'center' });
+
+    // Reset position after header
+    doc.y = 130;
+
+    // Parse content into sections
+    const lines = content.split('\n');
+    let currentSection = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (!line) {
+        doc.moveDown(0.5);
+        continue;
+      }
+
+      // Check if new page is needed
+      if (doc.y > doc.page.height - 100) {
+        doc.addPage();
+        doc.y = 60;
+      }
+
+      // Detect headers (lines ending with colon or starting with numbers/bullets)
+      const isHeader = /^(AI-Generated Meeting Summary|Generated on:|Meeting Duration:|Full Transcript:|---|\d+\.|•|[A-Z][^:]{2,50}:)/.test(line);
+      const isSectionTitle = /^[A-Z][a-zA-Z\s]{3,50}:$/.test(line) || 
+                            /^\d+\.\s+[A-Z]/.test(line);
+      const isDivider = line === '---' || line === '---' || /^-{3,}$/.test(line);
+
+      if (isDivider) {
+        // Draw a horizontal line
+        doc.moveDown(0.5);
+        doc.strokeColor(lightGray)
+           .lineWidth(1)
+           .moveTo(60, doc.y)
+           .lineTo(doc.page.width - 60, doc.y)
+           .stroke();
+        doc.moveDown(0.5);
+      } else if (isSectionTitle) {
+        // Section headers
+        doc.moveDown(0.8);
+        doc.fillColor(accentColor)
+           .fontSize(14)
+           .font('Helvetica-Bold')
+           .text(line, {
+             align: 'left',
+             lineGap: 3
+           });
+        doc.moveDown(0.3);
+      } else if (line.startsWith('Generated on:') || line.startsWith('Meeting Duration:')) {
+        // Metadata lines
+        doc.fillColor(darkGray)
+           .fontSize(10)
+           .font('Helvetica-Oblique')
+           .text(line, {
+             align: 'left',
+             lineGap: 2
+           });
+      } else if (/^[-•]\s/.test(line)) {
+        // Bullet points
+        const bulletText = line.replace(/^[-•]\s/, '');
+        doc.fillColor(primaryColor)
+           .fontSize(11)
+           .font('Helvetica')
+           .text('• ', doc.x, doc.y, { continued: true })
+           .text(bulletText, {
+             align: 'left',
+             lineGap: 4,
+             indent: 15
+           });
+        doc.moveDown(0.2);
+      } else if (/^\d+\.\s/.test(line)) {
+        // Numbered items (action items, etc.)
+        doc.fillColor(primaryColor)
+           .fontSize(11)
+           .font('Helvetica')
+           .text(line, {
+             align: 'left',
+             lineGap: 4,
+             indent: 20
+           });
+        doc.moveDown(0.2);
+      } else {
+        // Regular paragraph text
+        doc.fillColor(darkGray)
+           .fontSize(11)
+           .font('Helvetica')
+           .text(line, {
+             align: 'left',
+             lineGap: 5
+           });
+        doc.moveDown(0.3);
+      }
+    }
+
+    // Footer on last page
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+      doc.switchToPage(i);
+      
+      // Footer line
+      doc.strokeColor(lightGray)
+         .lineWidth(0.5)
+         .moveTo(60, doc.page.height - 50)
+         .lineTo(doc.page.width - 60, doc.page.height - 50)
+         .stroke();
+      
+      // Page number
+      doc.fillColor(lightGray)
+         .fontSize(9)
+         .font('Helvetica')
+         .text(
+           `Page ${i + 1} of ${pageCount}`,
+           60,
+           doc.page.height - 40,
+           { align: 'center' }
+         );
+    }
 
     doc.end();
     console.log('PDF generated successfully');
@@ -105,7 +241,6 @@ app.post('/generate-pdf', async (req, res) => {
     }
   }
 });
-
 app.post('/dispatch-mails', upload.single('summaryPdf'), async (req, res) => {
   try {
     const { subject, mails } = req.body;
