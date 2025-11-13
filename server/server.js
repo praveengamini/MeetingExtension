@@ -335,66 +335,123 @@ import { CohereClientV2 } from "cohere-ai";
 const co = new CohereClientV2({
   token: process.env.COHERE_API_KEY
 });
-
 app.post('/generate-summary', async (req, res) => {
   try {
     const { transcript, duration, summaryStructure, customPrompt } = req.body;
+
+    console.log('\n========== SUMMARY GENERATION REQUEST ==========');
+    console.log('Transcript Length:', transcript?.length || 0);
+    console.log('Duration:', duration);
+    console.log('Structure:', summaryStructure);
+    console.log('Custom Prompt:', customPrompt || 'NONE');
+    console.log('Custom Prompt Length:', customPrompt?.trim().length || 0);
+    console.log('================================================\n');
 
     if (!transcript || transcript.trim().length === 0) {
       return res.status(400).json({ error: 'Transcript is required and cannot be empty' });
     }
 
-    const structure = summaryStructure?.length > 0 
-      ? summaryStructure.join('\n')
-      : `1. Meeting Overview
-2. Key Discussion Points
-3. Decisions Made
-4. Action Items (if any)
-5. Next Steps (if mentioned)`;
+    // Default structure
+    const baseStructure = summaryStructure?.length > 0
+      ? summaryStructure
+      : [
+          '1. Meeting Overview',
+          '2. Key Discussion Points',
+          '3. Decisions Made',
+          '4. Action Items',
+          '5. Next Steps'
+        ];
 
-    const basePrompt = customPrompt || 
-      `Please provide a comprehensive summary of the following meeting transcript. Include key points discussed, decisions made, action items, and any important details. Format the summary in a professional manner suitable for sharing with meeting participants.`;
+    // ======================================
+    // ⭐ BUILD finalStructure (custom is #1)
+    // ======================================
+    let finalStructure;
 
-    const prompt = `${basePrompt}
+    if (customPrompt && customPrompt.trim().length > 0) {
+      // Insert custom as position #1
+      finalStructure = [
+        `1. CUSTOM INSTRUCTIONS: ${customPrompt.trim()}`,
+        ...baseStructure.map((item, index) =>
+          `${index + 2}. ${item.replace(/^\d+\.\s*/, '')}`
+        )
+      ].join('\n');
+    } else {
+      // No custom prompt — normal structure
+      finalStructure = baseStructure.join('\n');
+    }
 
-Meeting Duration: ${duration || 'Not specified'}
-Date: ${new Date().toLocaleDateString()}
+    // ======================================
+    // ⭐ BUILD PROMPT
+    // ======================================
+    let prompt = `
+You are an AI assistant generating a clean, structured meeting summary.
 
-Transcript:
+=========================
+📌 **Meeting Information**
+=========================
+- Duration: ${duration || "Not specified"}
+- Date: ${new Date().toLocaleDateString()}
+
+=========================
+📌 **Summary Requirements**
+=========================
+1. Follow the final structure exactly as given.
+2. Custom instructions appear as item #1 (if provided).
+3. Do not hallucinate — only use transcript content.
+
+=========================
+📌 **Summary Structure**
+=========================
+${finalStructure}
+
+=========================
+📌 **Transcript to Summarize**
+=========================
 ${transcript}
+`;
 
-Please structure your summary with the following sections:
-${structure}`;
+    console.log('\n========== FINAL PROMPT SENT ==========');
+    console.log(prompt);
+    console.log('=======================================\n');
 
-    // ✅ New API call
+    const startTime = Date.now();
+
     const response = await co.chat({
       model: "command-a-03-2025",
       messages: [{ role: "user", content: prompt }],
     });
 
-    const aiSummary = response.message?.content[0]?.text?.trim() || 'No summary generated.';
+    const endTime = Date.now();
+
+    const aiSummary = response.message?.content?.[0]?.text?.trim() || "No summary generated.";
 
     const formattedSummary = `AI-Generated Meeting Summary
 Generated on: ${new Date().toLocaleString()}
-Meeting Duration: ${duration || 'Not specified'}
+Meeting Duration: ${duration || "Not specified"}
 
 ${aiSummary}
 
 ---
 Full Transcript:
-${transcript}`;
+${transcript}
+`;
 
     res.json({
       success: true,
       summary: formattedSummary,
       model_used: response.model,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
+      debug: {
+        custom_prompt_used: !!customPrompt,
+        ai_response_time_ms: endTime - startTime,
+        transcript_length: transcript.length
+      }
     });
 
   } catch (error) {
-    console.error('Error generating summary with Cohere:', error);
+    console.error(error);
     res.status(500).json({
-      error: 'Failed to generate summary',
+      error: "Failed to generate summary",
       details: error.message
     });
   }
